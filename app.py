@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Umut Besicilik - Süt Takip Sistemi", page_icon="🐄", layout="wide"
+    page_title="Umut Besicilik - Besiciliğin Ana Adresi", page_icon="🐄", layout="wide"
 )
 
 # 1. Başlangıç Verileri (Session State)
@@ -55,8 +55,8 @@ def calculate_age(born):
     return f"{years} Yaşında ({rem_months} aylık)"
 
 
-st.title("🐄 Umut Besicilik - Süt ve İnek Takip Paneli")
-st.markdown("Babanın telefonundan rahatça kullanabileceği günlük sağım takip sistemi.")
+st.title("🐄 Umut Besicilik - Besiciliğin Ana Adresi")
+st.markdown("🐄")
 
 # Sekmeler
 tab1, tab2, tab3 = st.tabs(
