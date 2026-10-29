@@ -74,33 +74,55 @@ with tab1:
 
         col1, col2 = st.columns(2)
         with col1:
-            morning_milk = st.number_input(
-                "Sabah Sütü (Litre)", min_value=0.0, step=0.1, format="%.1f"
+            # Boş gelen, babanın direkt üzerine yazabileceği metin kutusu
+            morning_input = st.text_input(
+                "Sabah Sütü (Litre)",
+                value="",
+                placeholder="Örn: 12.5 veya 12",
             )
         with col2:
-            evening_milk = st.number_input(
-                "Akşam Sütü (Litre)", min_value=0.0, step=0.1, format="%.1f"
+            evening_input = st.text_input(
+                "Akşam Sütü (Litre)",
+                value="",
+                placeholder="Örn: 10 veya 10.5",
             )
 
         submitted = st.form_submit_button("Kaydı Ekle")
 
         if submitted:
-            total_milk = morning_milk + evening_milk
-            new_row = pd.DataFrame(
-                {
-                    "Tarih": [selected_date],
-                    "Inek": [cow_name],
-                    "Sabah_Litre": [morning_milk],
-                    "Aksam_Litre": [evening_milk],
-                    "Toplam_Litre": [total_milk],
-                }
-            )
-            st.session_state.milking_logs = pd.concat(
-                [st.session_state.milking_logs, new_row], ignore_index=True
-            )
-            st.success(
-                f"✅ {cow_name} için kayıt eklendi! Toplam: {total_milk} Litre"
-            )
+            try:
+                # Virgül girilirse noktaya çevirelim ki hata vermesin
+                morning_milk = (
+                    float(morning_input.replace(",", "."))
+                    if morning_input.strip()
+                    else 0.0
+                )
+                evening_milk = (
+                    float(evening_input.replace(",", "."))
+                    if evening_input.strip()
+                    else 0.0
+                )
+                total_milk = morning_milk + evening_milk
+
+                new_row = pd.DataFrame(
+                    {
+                        "Tarih": [selected_date],
+                        "Inek": [cow_name],
+                        "Sabah_Litre": [morning_milk],
+                        "Aksam_Litre": [evening_milk],
+                        "Toplam_Litre": [total_milk],
+                    }
+                )
+                st.session_state.milking_logs = pd.concat(
+                    [st.session_state.milking_logs, new_row], ignore_index=True
+                )
+                st.success(
+                    f"✅ {cow_name} için kayıt eklendi! Toplam: {total_milk} Litre"
+                )
+            except ValueError:
+                st.error(
+                    "⚠️ Lütfen litre alanına geçerli bir sayı yazın (Örn: 12.5 veya 12)."
+                )
 
     st.divider()
     st.subheader("Son Yapılan Kayıtlar")
