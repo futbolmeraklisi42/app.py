@@ -132,7 +132,7 @@ with col_k2:
     st.metric(
         "Bu Ayki Toplam Masraf",
         f"{current_month_expense:,.2f} TL",
-        delta_color="inverse",
+        help="Bu ay yapılan toplam harcama (Not: Toplu saman/yem alımları yapıldıysa bu tutar yüksek görünebilir).",
     )
 with col_k3:
     st.metric(
@@ -148,7 +148,7 @@ if net_profit > 0:
     )
 elif net_profit < 0:
     st.error(
-        f"🔴 **DURUM EKSİDE (ZARAR):** Bu ay yapılan masraflar süt gelirini geçti. Şu an **{abs(net_profit):,.2f} TL** eksideyiz."
+        f"🔴 **DURUM EKSİDE (ZARAR / TOPLU ALIM):** Bu ay yapılan masraflar süt gelirini geçti. (Eğer toplu saman/yem alındıysa bu normaldir, uzun vadeli stok yapılmıştır.) Şu an **{abs(net_profit):,.2f} TL** fark var."
     )
 else:
     st.info(
@@ -165,7 +165,7 @@ tab1, tab2, tab3, tab4 = st.tabs(
         "📥 Günlük Süt Girişi",
         "🛒 Masraf Girişi (Yem, Saman)",
         "🐄 İnekler ve Yaş Takibi",
-        "📊 Detaylı Raporlar",
+        "📊 Detaylı Raporlar ve Özet",
     ]
 )
 
@@ -264,6 +264,9 @@ with tab1:
 
 with tab2:
     st.subheader("🛒 Yem, Saman ve Diğer Giderleri Kaydet")
+    st.markdown(
+        "İster 2 haftalık, ister 1 yıllık olsun; aldığınız ürünü ve ödediğiniz toplam parayı buraya yazabilirsiniz."
+    )
 
     with st.form("expense_form"):
         exp_date = st.date_input("Alışveriş Tarihi", value=date.today())
@@ -282,14 +285,16 @@ with tab2:
         col_e1, col_e2 = st.columns(2)
         with col_e1:
             exp_amount = st.text_input(
-                "Miktar / Adet", value="", placeholder="Örn: 5 veya 50"
+                "Miktar / Adet", value="", placeholder="Örn: 50 veya 5"
             )
-            exp_unit = st.selectbox("Birim", ["Balya", "Çuval", "Kg", "Adet"])
+            exp_unit = st.selectbox(
+                "Birim", ["Balya", "Çuval", "Kg", "Ton", "Adet"]
+            )
         with col_e2:
             exp_total_price = st.text_input(
                 "Ödenen Toplam Tutar (TL)",
                 value="",
-                placeholder="Örn: 2500",
+                placeholder="Örn: 25000",
             )
 
         exp_submitted = st.form_submit_button("Masrafı Kaydet")
@@ -419,10 +424,14 @@ with tab3:
                 st.rerun()
 
 with tab4:
-    st.subheader("📊 İnek Bazlı Üretim ve Masraf Dağılım Raporları")
+    st.subheader("📊 Detaylı Raporlar ve Özet Tablolar")
+    st.markdown(
+        "Babanın kolayca okuyup anlayabileceği net ve sade dökümler aşağıdadır."
+    )
 
+    # 1. İnek Bazında Süt Dökümü
+    st.markdown("### 🐄 İnek Bazında Toplam Süt Miktarları")
     if not st.session_state.milking_logs.empty:
-        st.markdown("### 🐄 İnek Bazında Toplam Süt Verimi")
         cow_summary = (
             st.session_state.milking_logs.groupby("Inek")[
                 ["Sabah_Kg", "Aksam_Kg", "Toplam_Kg"]
@@ -437,9 +446,14 @@ with tab4:
             "Genel Toplam (kg)",
         ]
         st.dataframe(cow_summary, use_container_width=True, hide_index=True)
+    else:
+        st.info("İnek bazlı döküm için önce süt kaydı girmelisin.")
 
+    st.divider()
+
+    # 2. Gider Kalemleri Dökümü
+    st.markdown("### 💸 Gider Türlerine Göre Toplam Harcamalar")
     if not st.session_state.expense_logs.empty:
-        st.markdown("### 💸 Masraf Kalemleri Dağılımı")
         exp_summary = (
             st.session_state.expense_logs.groupby("Gider_Turu")[
                 "Toplam_Tutar_TL"
@@ -449,3 +463,5 @@ with tab4:
         )
         exp_summary.columns = ["Gider Türü", "Toplam Harcanan (TL)"]
         st.dataframe(exp_summary, use_container_width=True, hide_index=True)
+    else:
+        st.info("Masraf dökümü için önce masraf kaydı girmelisin.")
