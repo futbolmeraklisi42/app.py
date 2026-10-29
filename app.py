@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Umut Besicilik - Süt ve Gider Takip Sistemi",
+    page_title="Umut Besicilik - Süt ve Çiftlik Yönetim Sistemi",
     page_icon="🐄",
     layout="wide",
 )
@@ -49,11 +49,11 @@ if "milking_logs" not in st.session_state:
 
 if "expense_logs" not in st.session_state:
     st.session_state.expense_logs = pd.DataFrame(
-        columns=["Tarih", "Gider_Turu", "Miktar", "Birim", "Toplam_Tutar_TL"]
+        columns=["Tarih", "Gider_Turu", "Miktar", "Toplam_Tutar_TL"]
     )
 
 if "milk_price" not in st.session_state:
-    st.session_state.milk_price = 15.0  # Varsayılan örnek süt kg fiyatı
+    st.session_state.milk_price = 15.0  # Varsayılan süt kg fiyatı
 
 
 # Yaş Hesaplama Fonksiyonu
@@ -65,47 +65,112 @@ def calculate_age(born):
     return f"{years} Yaşında ({rem_months} aylık)"
 
 
-st.title("🐄 Umut Besicilik - Süt ve Masraf Takip Paneli")
-st.markdown(
-    "Babanın telefonundan rahatça kullanabileceği günlük çiftlik yönetim sistemi."
-)
+st.title("🐄 Umut Besicilik - Çiftlik Yönetim Paneli")
+st.markdown("Babanın telefonundan tek tıkla süt, masraf ve kâr-zarar takibi.")
 
-# Üst kısımda Fiyat Ayarı
-with st.container():
-    st.markdown("### 💰 Süt Satış Fiyatı Ayarı")
-    col_p1, col_p2 = st.columns([2, 3])
-    with col_p1:
-        price_input = st.text_input(
-            "Güncel Süt Kilogram Fiyatı (TL)",
-            value=str(st.session_state.milk_price),
-            placeholder="Örn: 15.5",
-        )
-    with col_p2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Fiyatı Güncelle"):
-            try:
-                new_p = float(price_input.replace(",", "."))
-                st.session_state.milk_price = new_p
-                st.success(
-                    f"✅ Süt kg fiyatı başarıyla {new_p} TL olarak güncellendi!"
-                )
-            except ValueError:
-                st.error("⚠️ Lütfen geçerli bir fiyat yazın.")
+# -------------------------------------------------------------
+# ANA SAYFA / ÜST BÖLÜM: AYLIK FİNANSAL DURUM VE KÂR/ZARAR ÖZETİ
+# -------------------------------------------------------------
+st.markdown("### 💵 Aylık Kâr / Zarar ve Finansal Durum")
+
+col_f1, col_f2 = st.columns([2, 3])
+with col_f1:
+    price_input = st.text_input(
+        "Güncel Süt Kg Fiyatı (TL)",
+        value=str(st.session_state.milk_price),
+        placeholder="Örn: 15.5",
+    )
+with col_f2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Fiyatı Güncelle"):
+        try:
+            new_p = float(price_input.replace(",", "."))
+            st.session_state.milk_price = new_p
+            st.success(f"✅ Süt fiyatı {new_p} TL olarak güncellendi!")
+            st.rerun()
+        except ValueError:
+            st.error("⚠️ Geçerli bir fiyat girin.")
+
+current_price = st.session_state.milk_price
+today = date.today()
+
+# Aylık Hesaplamalar İçin Tarih Süzme
+df_milk = st.session_state.milking_logs.copy()
+df_exp = st.session_state.expense_logs.copy()
+
+current_month_milk_income = 0.0
+current_month_expense = 0.0
+
+if not df_milk.empty:
+    df_milk["Tarih"] = pd.to_datetime(df_milk["Tarih"])
+    month_milk = df_milk[
+        (df_milk["Tarih"].dt.year == today.year)
+        & (df_milk["Tarih"].dt.month == today.month)
+    ]
+    total_kg_month = month_milk["Toplam_Kg"].sum()
+    current_month_milk_income = total_kg_month * current_price
+
+if not df_exp.empty:
+    df_exp["Tarih"] = pd.to_datetime(df_exp["Tarih"])
+    month_exp = df_exp[
+        (df_exp["Tarih"].dt.year == today.year)
+        & (df_exp["Tarih"].dt.month == today.month)
+    ]
+    current_month_expense = month_exp["Toplam_Tutar_TL"].sum()
+
+net_profit = current_month_milk_income - current_month_expense
+
+# Gösterge Kartları
+col_k1, col_k2, col_k3 = st.columns(3)
+with col_k1:
+    st.metric(
+        "Bu Ayki Süt Geliri",
+        f"{current_month_milk_income:,.2f} TL",
+        help=f"Kg fiyatı ({current_price} TL) üzerinden otomatik hesaplandı.",
+    )
+with col_k2:
+    st.metric(
+        "Bu Ayki Toplam Masraf",
+        f"{current_month_expense:,.2f} TL",
+        delta_color="inverse",
+    )
+with col_k3:
+    st.metric(
+        "Bu Ayki NET KÂR / ZARAR",
+        f"{net_profit:,.2f} TL",
+        delta=f"{net_profit:,.2f} TL",
+    )
+
+# Durum Değerlendirme Mesajı
+if net_profit > 0:
+    st.success(
+        f"🟢 **DURUM HARİKA (ARTIDAYIZ):** Bu ay Umut Besicilik masraflar çıktıktan sonra **{net_profit:,.2f} TL** net kârda!"
+    )
+elif net_profit < 0:
+    st.error(
+        f"🔴 **DURUM EKSİDE (ZARAR):** Bu ay yapılan masraflar süt gelirini geçti. Şu an **{abs(net_profit):,.2f} TL** eksideyiz."
+    )
+else:
+    st.info(
+        "ℹ️ Bu ay henüz gelir veya gider dengesi başa baş (0 TL) seviyesinde."
+    )
 
 st.divider()
 
-# Sekmeler
+# -------------------------------------------------------------
+# SEKMELER
+# -------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs(
     [
         "📥 Günlük Süt Girişi",
-        "🛒 Masraf Girişi (Yem, Saman vb.)",
+        "🛒 Masraf Girişi (Yem, Saman)",
         "🐄 İnekler ve Yaş Takibi",
-        "📊 Raporlar ve Özet",
+        "📊 Detaylı Raporlar",
     ]
 )
 
 with tab1:
-    st.subheader("Bugünkü Süt Tartımını Kaydet (Kilogram - kg)")
+    st.subheader("Bugünkü Süt Tartımını Kaydet (Kg)")
 
     if st.session_state.cows.empty:
         st.warning(
@@ -160,17 +225,19 @@ with tab1:
                     st.success(
                         f"✅ {cow_name} için süt eklendi! Toplam: {total_milk} kg"
                     )
+                    st.rerun()
                 except ValueError:
                     st.error(
                         "⚠️ Lütfen kg alanına geçerli bir sayı yazın (Örn: 12.5 veya 12)."
                     )
 
     st.divider()
-    st.subheader("📋 Son Süt Kayıtları ve Hatalı Giriş Silme")
+    st.subheader("📋 Son Süt Kayıtları ve Yanlış Giriş Silme")
     if not st.session_state.milking_logs.empty:
-        display_logs = st.session_state.milking_logs.copy()
         st.dataframe(
-            display_logs.sort_values(by="Tarih", ascending=False),
+            st.session_state.milking_logs.sort_values(
+                by="Tarih", ascending=False
+            ),
             use_container_width=True,
             hide_index=True,
         )
@@ -197,9 +264,6 @@ with tab1:
 
 with tab2:
     st.subheader("🛒 Yem, Saman ve Diğer Giderleri Kaydet")
-    st.markdown(
-        "Babam marketten/tüccardan yem, saman, arpa vb. aldığında buraya işleyebilir."
-    )
 
     with st.form("expense_form"):
         exp_date = st.date_input("Alışveriş Tarihi", value=date.today())
@@ -257,6 +321,7 @@ with tab2:
                 st.success(
                     f"✅ {exp_type} masrafı eklendi! Toplam: {total_price_val:,.2f} TL"
                 )
+                st.rerun()
             except ValueError:
                 st.error(
                     "⚠️ Lütfen miktar ve tutar alanlarına geçerli sayılar yazın."
@@ -294,10 +359,7 @@ with tab2:
         st.info("Henüz masraf girilmedi.")
 
 with tab3:
-    st.subheader("İnek Listesi ve Yaş Durumu")
-    st.markdown(
-        "Sistemdeki kayıtlı inekleri buradan yönetebilir, yenilerini ekleyebilir veya listeden silebilirsin."
-    )
+    st.subheader("İnek Listesi ve Otomatik Yaş Takibi")
 
     if not st.session_state.cows.empty:
         display_df = st.session_state.cows.copy()
@@ -339,7 +401,7 @@ with tab3:
 
         if add_cow_btn:
             if not new_id.strip():
-                st.warning("Lütfen bir inek adı veya numarası yazın!")
+                st.warning("Lütfen bir inek adı yazın!")
             elif new_id in st.session_state.cows["Inek_ID"].values:
                 st.warning("Bu isimde bir inek zaten var!")
             else:
@@ -353,70 +415,18 @@ with tab3:
                 st.session_state.cows = pd.concat(
                     [st.session_state.cows, new_cow_row], ignore_index=True
                 )
-                st.success(f"'{new_id}' sisteme başarıyla eklendi!")
+                st.success(f"'{new_id}' sisteme eklendi!")
                 st.rerun()
 
 with tab4:
-    st.subheader("📊 Özet Raporlar, Satış Geliri ve Masraf Analizi")
+    st.subheader("📊 İnek Bazlı Üretim ve Masraf Dağılım Raporları")
 
-    today_ts = pd.Timestamp(date.today())
-    current_price = st.session_state.milk_price
-
-    # 1. Bugünün Durumu
-    st.markdown("### 📅 Bugünün Süt ve Satış Özeti")
     if not st.session_state.milking_logs.empty:
-        df_logs = st.session_state.milking_logs.copy()
-        df_logs["Tarih"] = pd.to_datetime(df_logs["Tarih"])
-        today_logs = df_logs[df_logs["Tarih"] == today_ts]
-
-        if not today_logs.empty:
-            today_total_kg = today_logs["Toplam_Kg"].sum()
-            today_total_money = today_total_kg * current_price
-
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                st.metric("Bugün Toplam Alınan Süt", f"{today_total_kg:.1f} kg")
-            with col_m2:
-                st.metric(
-                    "Bugünkü Otomatik Satış Geliri",
-                    f"{today_total_money:,.2f} TL",
-                )
-        else:
-            st.info("Bugün için henüz süt kaydı girilmedi.")
-    else:
-        st.info("Henüz süt kaydı girilmedi.")
-
-    st.divider()
-
-    # 2. Genel Toplam Giderler Özeti
-    st.markdown("### 💸 Toplam Masraflar Özeti (Yem, Saman vb.)")
-    if not st.session_state.expense_logs.empty:
-        df_exp = st.session_state.expense_logs.copy()
-        total_expense = df_exp["Toplam_Tutar_TL"].sum()
-        st.metric(
-            label="Yapılan Toplam Masraf",
-            value=f"{total_expense:,.2f} TL",
-        )
-
-        st.markdown("**Gider Türlerine Göre Dağılım:**")
-        exp_summary = (
-            df_exp.groupby("Gider_Turu")["Toplam_Tutar_TL"]
-            .sum()
-            .reset_index()
-        )
-        exp_summary.columns = ["Gider Türü", "Toplam Harcanan (TL)"]
-        st.dataframe(exp_summary, use_container_width=True, hide_index=True)
-    else:
-        st.info("Henüz masraf kaydı girilmedi.")
-
-    st.divider()
-
-    # 3. İnek Bazında Süt Dökümü
-    st.markdown("### 🐄 İnek Bazında Toplam Süt Miktarları")
-    if not st.session_state.milking_logs.empty:
-        df_logs = st.session_state.milking_logs.copy()
+        st.markdown("### 🐄 İnek Bazında Toplam Süt Verimi")
         cow_summary = (
-            df_logs.groupby("Inek")[["Sabah_Kg", "Aksam_Kg", "Toplam_Kg"]]
+            st.session_state.milking_logs.groupby("Inek")[
+                ["Sabah_Kg", "Aksam_Kg", "Toplam_Kg"]
+            ]
             .sum()
             .reset_index()
         )
@@ -427,5 +437,15 @@ with tab4:
             "Genel Toplam (kg)",
         ]
         st.dataframe(cow_summary, use_container_width=True, hide_index=True)
-    else:
-        st.info("İnek bazlı döküm için önce süt kaydı girmelisin.")
+
+    if not st.session_state.expense_logs.empty:
+        st.markdown("### 💸 Masraf Kalemleri Dağılımı")
+        exp_summary = (
+            st.session_state.expense_logs.groupby("Gider_Turu")[
+                "Toplam_Tutar_TL"
+            ]
+            .sum()
+            .reset_index()
+        )
+        exp_summary.columns = ["Gider Türü", "Toplam Harcanan (TL)"]
+        st.dataframe(exp_summary, use_container_width=True, hide_index=True)
