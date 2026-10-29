@@ -10,7 +10,15 @@ st.set_page_config(
 if "cows" not in st.session_state:
     st.session_state.cows = pd.DataFrame(
         {
-            "Inek_ID": ["İnek 1 (Sarıkız)", "İnek 2 (Benekli)", "İnek 3 (Yıldız)", "İnek 4 (Kınalı)", "İnek 5 (Doru)", "İnek 6 (Papatya)", "İnek 7 (Zeytin)"],
+            "Inek_ID": [
+                "İnek 1 (Sarıkız)",
+                "İnek 2 (Benekli)",
+                "İnek 3 (Yıldız)",
+                "İnek 4 (Kınalı)",
+                "İnek 5 (Doru)",
+                "İnek 6 (Papatya)",
+                "İnek 7 (Zeytin)",
+            ],
             "Dogum_Tarihi": [
                 date(2020, 3, 15),
                 date(2019, 5, 10),
@@ -20,12 +28,19 @@ if "cows" not in st.session_state:
                 date(2020, 11, 25),
                 date(2021, 6, 18),
             ],
-            T_Kuru_Donem: [False, False, False, False, False, False, False],
+            "T_Kuru_Donem": [
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+            ],
         }
     )
 
 if "milking_logs" not in st.session_state:
-    # Örnek boş veya başlangıç kayıt tablosu
     st.session_state.milking_logs = pd.DataFrame(
         columns=["Tarih", "Inek", "Sabah_Litre", "Aksam_Litre", "Toplam_Litre"]
     )
@@ -34,12 +49,6 @@ if "milking_logs" not in st.session_state:
 # Yaş Hesaplama Fonksiyonu
 def calculate_age(born):
     today = date.today()
-    age = (
-        today.year
-        - born.year
-        - ((today.month, today.day) < (born.month, born.day))
-    )
-    # Kaç yıl kaç ay olduğunu da hesaplayalım
     months = (today.year - born.year) * 12 + today.month - born.month
     years = months // 12
     rem_months = months % 12
@@ -111,7 +120,6 @@ with tab2:
         "İneklerin doğum tarihlerine göre güncel yaşları her gün otomatik hesaplanır."
     )
 
-    # Yaşları tabloya ekleyelim
     display_df = st.session_state.cows.copy()
     display_df["Guncel_Yas"] = display_df["Dogum_Tarihi"].apply(calculate_age)
 
@@ -151,11 +159,10 @@ with tab3:
         df_logs = st.session_state.milking_logs
         total_sum = df_logs["Toplam_Litre"].sum()
         st.metric(
-            label="Toplam Üretilen Süt (Sezon/Tüm Zamanlar)",
+            label="Toplam Üretilen Süt",
             value=f"{total_sum:.1f} Litre",
         )
 
-        # İneklere göre dağılım
         cow_summary = (
             df_logs.groupby("Inek")["Toplam_Litre"].sum().reset_index()
         )
