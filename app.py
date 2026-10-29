@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Umut Besicilik - Süt ve Çiftlik Yönetim Sistemi",
+    page_title="Umut Besicilik - Çiftlik Yönetim Sistemi",
     page_icon="🐄",
     layout="wide",
 )
@@ -120,7 +120,7 @@ if not df_exp.empty:
 
 net_profit = current_month_milk_income - current_month_expense
 
-# Gösterge Kartları (2. Görseldeki Gibi Büyük Gösterge)
+# Gösterge Kartları (2. Görseldeki Gibi Büyük Gösterge)[cite: 2]
 col_k1, col_k2, col_k3 = st.columns(3)
 with col_k1:
     st.metric(
@@ -234,13 +234,17 @@ with tab1:
     st.divider()
     st.subheader("📋 Son Süt Kayıtları ve Yanlış Giriş Silme")
     if not st.session_state.milking_logs.empty:
-        st.dataframe(
-            st.session_state.milking_logs.sort_values(
-                by="Tarih", ascending=False
-            ),
-            use_container_width=True,
-            hide_index=True,
+        # Tablo yerine her kaydı şık birer kutu/kart yapalım ya da temiz liste sunalım
+        st.markdown(
+            "Kayıtlı son işlemleriniz aşağıdadır. Hatalı olanı listeden seçip silebilirsiniz:"
         )
+
+        for idx, row in st.session_state.milking_logs.tail(5).iterrows():
+            st.info(
+                f"📅 **{pd.to_datetime(row['Tarih']).strftime('%d.%m.%Y')}** | "
+                f"🐄 **{row['Inek']}** -> Sabah: `{row['Sabah_Kg']} kg` | "
+                f"Akşam: `{row['Aksam_Kg']} kg` | Toplam: **{row['Toplam_Kg']} kg**"
+            )
 
         with st.form("delete_log_form"):
             row_to_delete = st.selectbox(
@@ -335,13 +339,12 @@ with tab2:
     st.divider()
     st.subheader("📋 Yapılan Masraf Geçmişi ve Silme")
     if not st.session_state.expense_logs.empty:
-        st.dataframe(
-            st.session_state.expense_logs.sort_values(
-                by="Tarih", ascending=False
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
+        for idx, row in st.session_state.expense_logs.tail(5).iterrows():
+            st.warning(
+                f"📅 **{pd.to_datetime(row['Tarih']).strftime('%d.%m.%Y')}** | "
+                f"🛒 **{row['Gider_Turu']}** ({row['Miktar']}) -> "
+                f"Tutar: **{row['Toplam_Tutar_TL']:,.2f} TL**"
+            )
 
         with st.form("delete_expense_form"):
             exp_to_delete = st.selectbox(
@@ -367,15 +370,12 @@ with tab3:
     st.subheader("İnek Listesi ve Otomatik Yaş Takibi")
 
     if not st.session_state.cows.empty:
-        display_df = st.session_state.cows.copy()
-        display_df["Guncel_Yas"] = display_df["Dogum_Tarihi"].apply(
-            calculate_age
-        )
-
-        st.dataframe(
-            display_df[["Inek_ID", "Dogum_Tarihi", "Guncel_Yas"]],
-            use_container_width=True,
-        )
+        # İnekleri de kartlar şeklinde gösterelim
+        for idx, row in st.session_state.cows.iterrows():
+            yas_metni = calculate_age(row["Dogum_Tarihi"])
+            st.info(
+                f"🐄 **{row['Inek_ID']}** | Doğum Tarihi: {row['Dogum_Tarihi']} | Yaşı: **{yas_metni}**"
+            )
 
         st.markdown("---")
         st.subheader("🗑️ İnek Sil")
@@ -408,7 +408,7 @@ with tab3:
             if not new_id.strip():
                 st.warning("Lütfen bir inek adı yazın!")
             elif new_id in st.session_state.cows["Inek_ID"].values:
-                st.warning("Bu isimde bir inek zaten var!")
+                st.warning("This isimde bir inek zaten var!")
             else:
                 new_cow_row = pd.DataFrame(
                     {
@@ -424,12 +424,12 @@ with tab3:
                 st.rerun()
 
 with tab4:
-    st.subheader("📊 Büyük Göstergeli Detaylı Özet Raporlar")
+    st.subheader("📊 Büyük Kartlı Raporlar ve İnek Haftalık Analizi")
     st.markdown(
-        "Babanın zorlanmadan, tek bakışta görebileceği büyük rakamlı kart özetleri:"
+        "Babanın zorlanmadan, tek bakışta görebileceği büyük rakamlı kart özetleri ve inek bazlı haftalık değişimler:"
     )
 
-    # 1. Gider Türlerine Göre Büyük Kartlar
+    # 1. Gider Türlerine Göre Büyük Kartlar[cite: 2]
     st.markdown("### 💸 Gider Türlerine Göre Toplam Harcamalar")
     if not st.session_state.expense_logs.empty:
         exp_summary = (
@@ -440,10 +440,9 @@ with tab4:
             .reset_index()
         )
 
-        # Kartlar halinde yan yana gösterelim
-        cols = st.columns(len(exp_summary))
+        cols = st.columns(min(len(exp_summary), 4) if len(exp_summary) > 0 else 1)
         for idx, row in exp_summary.iterrows():
-            with cols[idx]:
+            with cols[idx % len(cols)]:
                 st.metric(
                     label=f"📌 {row['Gider_Turu']}",
                     value=f"{row['Toplam_Tutar_TL']:,.2f} TL",
@@ -453,7 +452,7 @@ with tab4:
 
     st.divider()
 
-    # 2. İnek Bazında Süt Dökümü (Büyük Kartlar Halinde)
+    # 2. İnek Bazında Toplam Süt Verimi Kartları[cite: 2]
     st.markdown("### 🐄 İnek Bazında Toplam Süt Verimi")
     if not st.session_state.milking_logs.empty:
         cow_summary = (
@@ -462,11 +461,57 @@ with tab4:
             .reset_index()
         )
 
-        cols_cow = st.columns(min(len(cow_summary), 4))
+        cols_cow = st.columns(
+            min(len(cow_summary), 4) if len(cow_summary) > 0 else 1
+        )
         for idx, row in cow_summary.iterrows():
-            with cols_cow[idx % 4]:
+            with cols_cow[idx % len(cols_cow)]:
                 st.metric(
                     label=f"🐄 {row['Inek']}", value=f"{row['Toplam_Kg']:.1f} kg"
                 )
+
+        st.divider()
+
+        # 3. İneklerin Haftalık Karşılaştırma Analizi (Azaldı mı Arttı mı?)
+        st.markdown(
+            "### 📈 İnek Bazında Son 1 Hafta / Önceki Hafta Süt Kıyaslaması"
+        )
+        st.markdown(
+            "Her ineğin bu hafta sütü artmış mı azalmış mı buradan takip edebilirsiniz:"
+        )
+
+        df_logs_analysis = st.session_state.milking_logs.copy()
+        df_logs_analysis["Tarih"] = pd.to_datetime(df_logs_analysis["Tarih"])
+        today_ts = pd.Timestamp(date.today())
+
+        week_ago = today_ts - pd.Timedelta(days=7)
+        two_weeks_ago = today_ts - pd.Timedelta(days=14)
+
+        for cow in st.session_state.cows["Inek_ID"].tolist():
+            cow_df = df_logs_analysis[df_logs_analysis["Inek"] == cow]
+
+            this_w = cow_df[
+                (cow_df["Tarih"] > week_ago) & (cow_df["Tarih"] <= today_ts)
+            ]["Toplam_Kg"].sum()
+            last_w = cow_df[
+                (cow_df["Tarih"] > two_weeks_ago)
+                & (cow_df["Tarih"] <= week_ago)
+            ]["Toplam_Kg"].sum()
+
+            fark = this_w - last_w
+
+            if this_w > 0 or last_w > 0:
+                if fark > 0:
+                    st.success(
+                        f"🟢 **{cow}**: Bu hafta **{this_w:.1f} kg** süt verdi. Geçen haftaya göre **{fark:.1f} kg artmış!**"
+                    )
+                elif fark < 0:
+                    st.warning(
+                        f"⚠️ **{cow}**: Bu hafta **{this_w:.1f} kg** süt verdi. Geçen haftaya göre **{abs(fark):.1f} kg azalmış.**"
+                    )
+                else:
+                    st.info(
+                        f"ℹ️ **{cow}**: Bu hafta **{this_w:.1f} kg** süt verdi. Geçen hafta ile aynı seviyede."
+                    )
     else:
-        st.info("İnek bazlı döküm için önce süt kaydı girmelisin.")
+        st.info("İnek bazlı analiz için önce süt kaydı girmelisin.")
