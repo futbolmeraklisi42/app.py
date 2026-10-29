@@ -120,7 +120,7 @@ if not df_exp.empty:
 
 net_profit = current_month_milk_income - current_month_expense
 
-# Gösterge Kartları
+# Gösterge Kartları (2. Görseldeki Gibi Büyük Gösterge)
 col_k1, col_k2, col_k3 = st.columns(3)
 with col_k1:
     st.metric(
@@ -132,7 +132,7 @@ with col_k2:
     st.metric(
         "Bu Ayki Toplam Masraf",
         f"{current_month_expense:,.2f} TL",
-        help="Bu ay yapılan toplam harcama (Not: Toplu saman/yem alımları yapıldıysa bu tutar yüksek görünebilir).",
+        help="Bu ay yapılan toplam harcama.",
     )
 with col_k3:
     st.metric(
@@ -424,34 +424,12 @@ with tab3:
                 st.rerun()
 
 with tab4:
-    st.subheader("📊 Detaylı Raporlar ve Özet Tablolar")
+    st.subheader("📊 Büyük Göstergeli Detaylı Özet Raporlar")
     st.markdown(
-        "Babanın kolayca okuyup anlayabileceği net ve sade dökümler aşağıdadır."
+        "Babanın zorlanmadan, tek bakışta görebileceği büyük rakamlı kart özetleri:"
     )
 
-    # 1. İnek Bazında Süt Dökümü
-    st.markdown("### 🐄 İnek Bazında Toplam Süt Miktarları")
-    if not st.session_state.milking_logs.empty:
-        cow_summary = (
-            st.session_state.milking_logs.groupby("Inek")[
-                ["Sabah_Kg", "Aksam_Kg", "Toplam_Kg"]
-            ]
-            .sum()
-            .reset_index()
-        )
-        cow_summary.columns = [
-            "İnek Adı",
-            "Toplam Sabah (kg)",
-            "Toplam Akşam (kg)",
-            "Genel Toplam (kg)",
-        ]
-        st.dataframe(cow_summary, use_container_width=True, hide_index=True)
-    else:
-        st.info("İnek bazlı döküm için önce süt kaydı girmelisin.")
-
-    st.divider()
-
-    # 2. Gider Kalemleri Dökümü
+    # 1. Gider Türlerine Göre Büyük Kartlar
     st.markdown("### 💸 Gider Türlerine Göre Toplam Harcamalar")
     if not st.session_state.expense_logs.empty:
         exp_summary = (
@@ -461,7 +439,34 @@ with tab4:
             .sum()
             .reset_index()
         )
-        exp_summary.columns = ["Gider Türü", "Toplam Harcanan (TL)"]
-        st.dataframe(exp_summary, use_container_width=True, hide_index=True)
+
+        # Kartlar halinde yan yana gösterelim
+        cols = st.columns(len(exp_summary))
+        for idx, row in exp_summary.iterrows():
+            with cols[idx]:
+                st.metric(
+                    label=f"📌 {row['Gider_Turu']}",
+                    value=f"{row['Toplam_Tutar_TL']:,.2f} TL",
+                )
     else:
         st.info("Masraf dökümü için önce masraf kaydı girmelisin.")
+
+    st.divider()
+
+    # 2. İnek Bazında Süt Dökümü (Büyük Kartlar Halinde)
+    st.markdown("### 🐄 İnek Bazında Toplam Süt Verimi")
+    if not st.session_state.milking_logs.empty:
+        cow_summary = (
+            st.session_state.milking_logs.groupby("Inek")["Toplam_Kg"]
+            .sum()
+            .reset_index()
+        )
+
+        cols_cow = st.columns(min(len(cow_summary), 4))
+        for idx, row in cow_summary.iterrows():
+            with cols_cow[idx % 4]:
+                st.metric(
+                    label=f"🐄 {row['Inek']}", value=f"{row['Toplam_Kg']:.1f} kg"
+                )
+    else:
+        st.info("İnek bazlı döküm için önce süt kaydı girmelisin.")
