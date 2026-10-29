@@ -6,7 +6,7 @@ st.set_page_config(
     page_title="Umut Besicilik - Süt Takip Sistemi", page_icon="🐄", layout="wide"
 )
 
-# 1. Başlangıç Verileri (Session State) - Boş veya temel bir liste ile başlatabiliriz
+# 1. Başlangıç Verileri (Session State)
 if "cows" not in st.session_state:
     st.session_state.cows = pd.DataFrame(
         {
@@ -205,18 +205,90 @@ with tab2:
                 st.rerun()
 
 with tab3:
-    st.subheader("Genel Süt Verim Analizi")
-    if not st.session_state.milking_logs.empty:
-        df_logs = st.session_state.milking_logs
-        total_sum = df_logs["Toplam_Litre"].sum()
-        st.metric(
-            label="Toplam Üretilen Süt",
-            value=f"{total_sum:.1f} Litre",
-        )
+    st.subheader("📊 Özet Raporlar ve Akıllı Analiz")
 
+    if not st.session_state.milking_logs.empty:
+        df_logs = st.session_state.milking_logs.copy()
+        df_logs["Tarih"] = pd.to_datetime(df_logs["Tarih"])
+        today_ts = pd.Timestamp(date.today())
+
+        # 1. Bugünün Durumu
+        st.markdown("### 📅 Bugünün Süt Özeti")
+        today_logs = df_logs[df_logs["Tarih"] == today_ts]
+        if not today_logs.empty:
+            today_total = today_logs["Toplam_Litre"].sum()
+            st.metric("Bugün Toplam Alınan Süt", f"{today_total:.1f} Litre")
+            st.markdown("**Bugün İneklere Göre Alınan Sütler:**")
+            for _, row in today_logs.iterrows():
+                st.write(
+                    f"- **{row['Inek']}**: Sabah `{row['Sabah_Litre']} L` | Akşam `{row['Aksam_Litre']} L` | Toplam: **{row['Toplam_Litre']} L**"
+                )
+        else:
+            st.info("Bugün için henüz süt kaydı girilmedi.")
+
+        st.divider()
+
+        # 2. Haftalık Karşılaştırma Analizi
+        st.markdown("### 📈 Haftalık Karşılaştırma ve Analiz")
+        week_ago = today_ts - pd.Timedelta(days=7)
+        two_weeks_ago = today_ts - pd.Timedelta(days=14)
+
+        this_week_df = df_logs[
+            (df_logs["Tarih"] > week_ago) & (df_logs["Tarih"] <= today_ts)
+        ]
+        last_week_df = df_logs[
+            (df_logs["Tarih"] > two_weeks_ago) & (df_logs["Tarih"] <= week_ago)
+        ]
+
+        this_week_total = this_week_df["Toplam_Litre"].sum()
+        last_week_total = last_week_df["Toplam_Litre"].sum()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Son 7 Günlük Toplam Süt", f"{this_week_total:.1f} L")
+        with col2:
+            st.metric(
+                "Önceki 7 Günlük Toplam Süt", f"{last_week_total:.1f} L"
+            )
+
+        st.markdown("#### 💡 Babaya Özel Özet Yorum:")
+        if not last_week_df.empty and not this_week_df.empty:
+            diff = this_week_total - last_week_total
+            if diff > 0:
+                st.success(
+                    f"🟢 Harika! Bu hafta geçen haftaya göre **{diff:.1f} litre daha fazla** süt alındı."
+                )
+            elif diff < 0:
+                st.warning(
+                    f"⚠️ Dikkat: Bu hafta geçen haftaya göre **{abs(diff):.1f} litre daha az** süt alındı."
+                )
+            else:
+                st.info(
+                    "ℹ️ Bu hafta ile geçen haftanın süt verimi tam olarak aynı seviyede."
+                )
+        else:
+            st.info(
+                "Geçen hafta ile kıyaslama yapabilmek için son 2 haftaya ait düzenli kayıtlar gerekiyor."
+            )
+
+        st.divider()
+
+        # 3. İnek İnek Tüm Zamanlar Dökümü
+        st.markdown("### 🐄 İnek Bazında Toplam Süt Miktarları")
         cow_summary = (
-            df_logs.groupby("Inek")["Toplam_Litre"].sum().reset_index()
+            df_logs.groupby("Inek")[
+                ["Sabah_Litre", "Aksam_Litre", "Toplam_Litre"]
+            ]
+            .sum()
+            .reset_index()
         )
-        st.bar_chart(cow_summary.set_index("Inek"))
+        cow_summary.columns = [
+            "İnek Adı",
+            "Toplam Sabah (L)",
+            "Toplam Akşam (L)",
+            "Genel Toplam (L)",
+        ]
+        st.dataframe(cow_summary, use_container_width=True, hide_index=True)
+
     else:
-        st.info("Grafik oluşturmak için önce günlük süt kaydı girmelisin.")
+        st.info("Raporları ve analizleri görebilmek için önce süt kaydı girmelisin.")
