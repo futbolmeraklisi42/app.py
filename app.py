@@ -45,6 +45,9 @@ if "milking_logs" not in st.session_state:
         columns=["Tarih", "Inek", "Sabah_Kg", "Aksam_Kg", "Toplam_Kg"]
     )
 
+if "milk_price" not in st.session_state:
+    st.session_state.milk_price = 15.0  # Varsayılan örnek süt kg fiyatı
+
 
 # Yaş Hesaplama Fonksiyonu
 def calculate_age(born):
@@ -58,12 +61,38 @@ def calculate_age(born):
 st.title("🐄 Umut Besicilik - Süt ve İnek Takip Paneli")
 st.markdown("Babanın telefonundan rahatça kullanabileceği günlük sağım sistemi.")
 
+# Üst kısımda Fiyat Ayarı (İstediği zaman güncelleyebilmesi için)
+with st.container():
+    st.markdown("### 💰 Süt Satış Fiyatı Ayarı")
+    col_p1, col_p2 = st.columns([2, 3])
+    with col_p1:
+        price_input = st.text_input(
+            "Güncel Süt Kilogram Fiyatı (TL)",
+            value=str(st.session_state.milk_price),
+            placeholder="Örn: 15.5 veya 20",
+        )
+    with col_p2:
+        st.markdown(
+            "<br>", unsafe_allow_html=True
+        )  # Butonla hizalamak için boşluk
+        if st.button("Fiyatı Güncelle"):
+            try:
+                new_p = float(price_input.replace(",", "."))
+                st.session_state.milk_price = new_p
+                st.success(
+                    f"✅ Süt kg fiyatı başarıyla {new_p} TL olarak güncellendi!"
+                )
+            except ValueError:
+                st.error("⚠️ Lütfen geçerli bir fiyat yazın.")
+
+st.divider()
+
 # Sekmeler
 tab1, tab2, tab3 = st.tabs(
     [
         "📥 Günlük Sağım Girişi & Düzeltme",
         "🐄 İnekler ve Yaş Takibi",
-        "📊 Raporlar ve Özet",
+        "📊 Raporlar, Satış ve Özet",
     ]
 )
 
@@ -84,15 +113,11 @@ with tab1:
             col1, col2 = st.columns(2)
             with col1:
                 morning_input = st.text_input(
-                    "Sabah Sütü (Kilogram - kg)",
-                    value="",
-                    placeholder="Örn: 12.5 veya 12",
+                    "Sabah Sütü (kg)", value="", placeholder="Örn: 12.5"
                 )
             with col2:
                 evening_input = st.text_input(
-                    "Akşam Sütü (Kilogram - kg)",
-                    value="",
-                    placeholder="Örn: 10 veya 10.5",
+                    "Akşam Sütü (kg)", value="", placeholder="Örn: 10"
                 )
 
             submitted = st.form_submit_button("Kaydı Ekle")
@@ -139,16 +164,13 @@ with tab1:
             "Eğer yanlış bir kilo girdiysen, aşağıdan o kaydı seçip silebilir ve yeniden doğru şekilde girebilirsin."
         )
 
-        # Tabloyu gösterelim
         display_logs = st.session_state.milking_logs.copy()
-        display_logs["Kayıt_ID"] = display_logs.index
         st.dataframe(
             display_logs.sort_values(by="Tarih", ascending=False),
             use_container_width=True,
             hide_index=True,
         )
 
-        # Kayıt Silme Formu
         with st.form("delete_log_form"):
             row_to_delete = st.selectbox(
                 "Silmek İstediğiniz Kaydı Seçin",
@@ -184,7 +206,6 @@ with tab2:
             use_container_width=True,
         )
 
-        # İnek Silme Bölümü
         st.markdown("---")
         st.subheader("🗑️ İnek Sil")
         with st.form("delete_cow_form"):
@@ -232,19 +253,31 @@ with tab2:
                 st.rerun()
 
 with tab3:
-    st.subheader("📊 Özet Raporlar ve Akıllı Analiz")
+    st.subheader("📊 Özet Raporlar, Satış Geliri ve Akıllı Analiz")
 
     if not st.session_state.milking_logs.empty:
         df_logs = st.session_state.milking_logs.copy()
         df_logs["Tarih"] = pd.to_datetime(df_logs["Tarih"])
         today_ts = pd.Timestamp(date.today())
+        current_price = st.session_state.milk_price
 
-        # 1. Bugünün Durumu
-        st.markdown("### 📅 Bugünün Süt Özeti")
+        # 1. Bugünün Durumu ve Otomatik Satış Geliri
+        st.markdown("### 📅 Bugünün Süt ve Satış Özeti")
         today_logs = df_logs[df_logs["Tarih"] == today_ts]
         if not today_logs.empty:
-            today_total = today_logs["Toplam_Kg"].sum()
-            st.metric("Bugün Toplam Alınan Süt", f"{today_total:.1f} kg")
+            today_total_kg = today_logs["Toplam_Kg"].sum()
+            today_total_money = today_total_kg * current_price
+
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.metric("Bugün Toplam Alınan Süt", f"{today_total_kg:.1f} kg")
+            with col_m2:
+                st.metric(
+                    "Bugünkü Otomatik Satış Geliri",
+                    f"{today_total_money:,.2f} TL",
+                    help=f"Güncel kg fiyatı: {current_price} TL üzerinden otomatik hesaplanmıştır.",
+                )
+
             st.markdown("**Bugün İneklere Göre Alınan Sütler:**")
             for _, row in today_logs.iterrows():
                 st.write(
@@ -255,8 +288,8 @@ with tab3:
 
         st.divider()
 
-        # 2. Haftalık Karşılaştırma Analizi
-        st.markdown("### 📈 Haftalık Karşılaştırma ve Analiz")
+        # 2. Haftalık Karşılaştırma Analizi ve Kazanç
+        st.markdown("### 📈 Haftalık Karşılaştırma ve Kazanç Analizi")
         week_ago = today_ts - pd.Timedelta(days=7)
         two_weeks_ago = today_ts - pd.Timedelta(days=14)
 
@@ -270,28 +303,38 @@ with tab3:
         this_week_total = this_week_df["Toplam_Kg"].sum()
         last_week_total = last_week_df["Toplam_Kg"].sum()
 
+        this_week_money = this_week_total * current_price
+        last_week_money = last_week_total * current_price
+
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Son 7 Günlük Toplam Süt", f"{this_week_total:.1f} kg")
+            st.metric(
+                "Son 7 Gün Süt & Gelir",
+                f"{this_week_total:.1f} kg",
+                f"{this_week_money:,.2f} TL",
+            )
         with col2:
             st.metric(
-                "Önceki 7 Günlük Toplam Süt", f"{last_week_total:.1f} kg"
+                "Önceki 7 Gün Süt & Gelir",
+                f"{last_week_total:.1f} kg",
+                f"{last_week_money:,.2f} TL",
             )
 
         st.markdown("#### 💡 Babaya Özel Özet Yorum:")
         if not last_week_df.empty and not this_week_df.empty:
             diff = this_week_total - last_week_total
+            diff_money = abs(diff) * current_price
             if diff > 0:
                 st.success(
-                    f"🟢 Harika! Bu hafta geçen haftaya göre **{diff:.1f} kg daha fazla** süt alındı."
+                    f"🟢 Harika! Bu hafta geçen haftaya göre **{diff:.1f} kg daha fazla** süt satıldı ve kasaya **{diff_money:,.2f} TL daha fazla** para girdi."
                 )
             elif diff < 0:
                 st.warning(
-                    f"⚠️ Dikkat: Bu hafta geçen haftaya göre **{abs(diff):.1f} kg daha az** süt alındı."
+                    f"⚠️ Dikkat: Bu hafta geçen haftaya göre **{abs(diff):.1f} kg daha az** süt alındı (Gelir **{diff_money:,.2f} TL** az)."
                 )
             else:
                 st.info(
-                    "ℹ️ Bu hafta ile geçen haftanın süt verimi tam olarak aynı seviyede."
+                    "ℹ️ Bu hafta ile geçen haftanın süt verimi ve geliri tam olarak aynı seviyede."
                 )
         else:
             st.info(
