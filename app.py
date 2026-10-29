@@ -44,7 +44,7 @@ if "cows" not in st.session_state:
 
 if "milking_logs" not in st.session_state:
     st.session_state.milking_logs = pd.DataFrame(
-        columns=["Tarih", "Inek", "Sabah_Kg", "Aksam_Kg", "Toplam_Kg"]
+        columns=["Tarih", "Toplam_Kg"]
     )
 
 if "expense_logs" not in st.session_state:
@@ -162,7 +162,7 @@ st.divider()
 # -------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs(
     [
-        "📥 Günlük Süt Girişi",
+        "📥 Günlük Toplam Süt Girişi",
         "🛒 Masraf Girişi (Yem, Saman)",
         "🐄 İnekler ve Yaş Takibi",
         "📊 Detaylı Raporlar ve Özet",
@@ -170,71 +170,50 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 with tab1:
-    st.subheader("Bugünkü Süt Tartımını Kaydet (Kg)")
+    st.subheader("Bugünkü Toplam Süt Tartımını Kaydet (Kg)")
+    st.markdown(
+        "Bütün ineklerden sağlanan toplam sütü tek seferde buraya yazabilirsiniz[cite: 1, 2]."
+    )
 
-    if st.session_state.cows.empty:
-        st.warning(
-            "⚠️ Önce 'İnekler ve Yaş Takibi' sekmesinden en az bir inek eklemelisin!"
+    with st.form("milking_form"):
+        selected_date = st.date_input("Sağım Tarihi", value=date.today())
+        total_milk_input = st.text_input(
+            "Bugünkü Toplam Süt Miktarı (kg)",
+            value="",
+            placeholder="Örn: 120.5 veya 115",
         )
-    else:
-        with st.form("milking_form"):
-            selected_date = st.date_input("Sağım Tarihi", value=date.today())
-            cow_name = st.selectbox(
-                "İnek Seçin", st.session_state.cows["Inek_ID"].tolist()
-            )
 
-            col1, col2 = st.columns(2)
-            with col1:
-                morning_input = st.text_input(
-                    "Sabah Sütü (kg)", value="", placeholder="Örn: 12.5"
-                )
-            with col2:
-                evening_input = st.text_input(
-                    "Akşam Sütü (kg)", value="", placeholder="Örn: 10"
+        submitted = st.form_submit_button("Toplam Süt Kaydını Ekle")
+
+        if submitted:
+            try:
+                total_milk = (
+                    float(total_milk_input.replace(",", "."))
+                    if total_milk_input.strip()
+                    else 0.0
                 )
 
-            submitted = st.form_submit_button("Süt Kaydını Ekle")
-
-            if submitted:
-                try:
-                    morning_milk = (
-                        float(morning_input.replace(",", "."))
-                        if morning_input.strip()
-                        else 0.0
-                    )
-                    evening_milk = (
-                        float(evening_input.replace(",", "."))
-                        if evening_input.strip()
-                        else 0.0
-                    )
-                    total_milk = morning_milk + evening_milk
-
-                    new_row = pd.DataFrame(
-                        {
-                            "Tarih": [selected_date],
-                            "Inek": [cow_name],
-                            "Sabah_Kg": [morning_milk],
-                            "Aksam_Kg": [evening_milk],
-                            "Toplam_Kg": [total_milk],
-                        }
-                    )
-                    st.session_state.milking_logs = pd.concat(
-                        [st.session_state.milking_logs, new_row],
-                        ignore_index=True,
-                    )
-                    st.success(
-                        f"✅ {cow_name} için süt eklendi! Toplam: {total_milk} kg"
-                    )
-                    st.rerun()
-                except ValueError:
-                    st.error(
-                        "⚠️ Lütfen kg alanına geçerli bir sayı yazın (Örn: 12.5 veya 12)."
-                    )
+                new_row = pd.DataFrame(
+                    {
+                        "Tarih": [selected_date],
+                        "Toplam_Kg": [total_milk],
+                    }
+                )
+                st.session_state.milking_logs = pd.concat(
+                    [st.session_state.milking_logs, new_row], ignore_index=True
+                )
+                st.success(
+                    f"✅ Toplam süt kaydedildi: **{total_milk} kg** (Otomatik satıldı ve gelir eklendi!)"
+                )
+                st.rerun()
+            except ValueError:
+                st.error(
+                    "⚠️ Lütfen kg alanına geçerli bir sayı yazın (Örn: 125.5)."
+                )
 
     st.divider()
     st.subheader("📋 Son Süt Kayıtları ve Yanlış Giriş Silme")
     if not st.session_state.milking_logs.empty:
-        # Tablo yerine her kaydı şık birer kutu/kart yapalım ya da temiz liste sunalım
         st.markdown(
             "Kayıtlı son işlemleriniz aşağıdadır. Hatalı olanı listeden seçip silebilirsiniz:"
         )
@@ -242,15 +221,14 @@ with tab1:
         for idx, row in st.session_state.milking_logs.tail(5).iterrows():
             st.info(
                 f"📅 **{pd.to_datetime(row['Tarih']).strftime('%d.%m.%Y')}** | "
-                f"🐄 **{row['Inek']}** -> Sabah: `{row['Sabah_Kg']} kg` | "
-                f"Akşam: `{row['Aksam_Kg']} kg` | Toplam: **{row['Toplam_Kg']} kg**"
+                f"Toplam Sağım: **{row['Toplam_Kg']} kg**"
             )
 
         with st.form("delete_log_form"):
             row_to_delete = st.selectbox(
-                "Silmek İstediğiniz Süt Kaydını Seçin",
+                "Silmek İstediğiniz Kaydı Seçin",
                 options=st.session_state.milking_logs.index.tolist(),
-                format_func=lambda x: f"Tarih: {st.session_state.milking_logs.loc[x, 'Tarih']} | İnek: {st.session_state.milking_logs.loc[x, 'Inek']} | Toplam: {st.session_state.milking_logs.loc[x, 'Toplam_Kg']} kg",
+                format_func=lambda x: f"Tarih: {st.session_state.milking_logs.loc[x, 'Tarih']} | Toplam: {st.session_state.milking_logs.loc[x, 'Toplam_Kg']} kg",
             )
             delete_log_btn = st.form_submit_button(
                 "Seçilen Hatalı Süt Kaydını Sil"
@@ -368,9 +346,11 @@ with tab2:
 
 with tab3:
     st.subheader("İnek Listesi ve Otomatik Yaş Takibi")
+    st.markdown(
+        "Buradan ineklerinizi ekleyebilir, yaşlarını otomatik görebilir ya da silebilirsiniz."
+    )
 
     if not st.session_state.cows.empty:
-        # İnekleri de kartlar şeklinde gösterelim
         for idx, row in st.session_state.cows.iterrows():
             yas_metni = calculate_age(row["Dogum_Tarihi"])
             st.info(
@@ -408,7 +388,7 @@ with tab3:
             if not new_id.strip():
                 st.warning("Lütfen bir inek adı yazın!")
             elif new_id in st.session_state.cows["Inek_ID"].values:
-                st.warning("This isimde bir inek zaten var!")
+                st.warning("Bu isimde bir inek zaten var!")
             else:
                 new_cow_row = pd.DataFrame(
                     {
@@ -424,9 +404,9 @@ with tab3:
                 st.rerun()
 
 with tab4:
-    st.subheader("📊 Büyük Kartlı Raporlar ve İnek Haftalık Analizi")
+    st.subheader("📊 Büyük Kartlı Raporlar ve Çiftlik Analizi")
     st.markdown(
-        "Babanın zorlanmadan, tek bakışta görebileceği büyük rakamlı kart özetleri ve inek bazlı haftalık değişimler:"
+        "Babanın zorlanmadan, tek bakışta görebileceği büyük rakamlı kart özetleri[cite: 2]:"
     )
 
     # 1. Gider Türlerine Göre Büyük Kartlar[cite: 2]
@@ -452,34 +432,9 @@ with tab4:
 
     st.divider()
 
-    # 2. İnek Bazında Toplam Süt Verimi Kartları[cite: 2]
-    st.markdown("### 🐄 İnek Bazında Toplam Süt Verimi")
+    # 2. Genel Süt ve Haftalık Karşılaştırma Analizi
+    st.markdown("### 📈 Süt Verimi ve Haftalık Karşılaştırma")
     if not st.session_state.milking_logs.empty:
-        cow_summary = (
-            st.session_state.milking_logs.groupby("Inek")["Toplam_Kg"]
-            .sum()
-            .reset_index()
-        )
-
-        cols_cow = st.columns(
-            min(len(cow_summary), 4) if len(cow_summary) > 0 else 1
-        )
-        for idx, row in cow_summary.iterrows():
-            with cols_cow[idx % len(cols_cow)]:
-                st.metric(
-                    label=f"🐄 {row['Inek']}", value=f"{row['Toplam_Kg']:.1f} kg"
-                )
-
-        st.divider()
-
-        # 3. İneklerin Haftalık Karşılaştırma Analizi (Azaldı mı Arttı mı?)
-        st.markdown(
-            "### 📈 İnek Bazında Son 1 Hafta / Önceki Hafta Süt Kıyaslaması"
-        )
-        st.markdown(
-            "Her ineğin bu hafta sütü artmış mı azalmış mı buradan takip edebilirsiniz:"
-        )
-
         df_logs_analysis = st.session_state.milking_logs.copy()
         df_logs_analysis["Tarih"] = pd.to_datetime(df_logs_analysis["Tarih"])
         today_ts = pd.Timestamp(date.today())
@@ -487,31 +442,34 @@ with tab4:
         week_ago = today_ts - pd.Timedelta(days=7)
         two_weeks_ago = today_ts - pd.Timedelta(days=14)
 
-        for cow in st.session_state.cows["Inek_ID"].tolist():
-            cow_df = df_logs_analysis[df_logs_analysis["Inek"] == cow]
+        this_w = df_logs_analysis[
+            (df_logs_analysis["Tarih"] > week_ago)
+            & (df_logs_analysis["Tarih"] <= today_ts)
+        ]["Toplam_Kg"].sum()
+        last_w = df_logs_analysis[
+            (df_logs_analysis["Tarih"] > two_weeks_ago)
+            & (df_logs_analysis["Tarih"] <= week_ago)
+        ]["Toplam_Kg"].sum()
 
-            this_w = cow_df[
-                (cow_df["Tarih"] > week_ago) & (cow_df["Tarih"] <= today_ts)
-            ]["Toplam_Kg"].sum()
-            last_w = cow_df[
-                (cow_df["Tarih"] > two_weeks_ago)
-                & (cow_df["Tarih"] <= week_ago)
-            ]["Toplam_Kg"].sum()
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            st.metric("Son 7 Günde Toplam Süt", f"{this_w:.1f} kg")
+        with col_r2:
+            st.metric("Önceki 7 Günde Toplam Süt", f"{last_w:.1f} kg")
 
-            fark = this_w - last_w
-
-            if this_w > 0 or last_w > 0:
-                if fark > 0:
-                    st.success(
-                        f"🟢 **{cow}**: Bu hafta **{this_w:.1f} kg** süt verdi. Geçen haftaya göre **{fark:.1f} kg artmış!**"
-                    )
-                elif fark < 0:
-                    st.warning(
-                        f"⚠️ **{cow}**: Bu hafta **{this_w:.1f} kg** süt verdi. Geçen haftaya göre **{abs(fark):.1f} kg azalmış.**"
-                    )
-                else:
-                    st.info(
-                        f"ℹ️ **{cow}**: Bu hafta **{this_w:.1f} kg** süt verdi. Geçen hafta ile aynı seviyede."
-                    )
+        fark = this_w - last_w
+        if last_w > 0:
+            if fark > 0:
+                st.success(
+                    f"🟢 Harika! Bu hafta geçen haftaya göre toplam **{fark:.1f} kg daha fazla** süt elde edildi."
+                )
+            elif fark < 0:
+                st.warning(
+                    f"⚠️ Dikkat: Bu hafta geçen haftaya göre toplam **{abs(fark):.1f} kg daha az** süt elde edildi."
+                )
+            else:
+                st.info(
+                    "ℹ️ Bu hafta ile geçen haftanın süt verimi aynı seviyede."
+                )
     else:
-        st.info("İnek bazlı analiz için önce süt kaydı girmelisin.")
+        st.info("Süt analizi için önce süt kaydı girmelisin.")
